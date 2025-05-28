@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "includes.h": "c",
+        "hello.C": "cpp",
+        "INCLUDES.H": "cpp"
+    }
+}

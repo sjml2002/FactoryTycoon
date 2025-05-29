@@ -2,5 +2,6 @@
 #define CUSTOM_H
 
 #include "display.c"
+#include "check.c"
 
 #endif

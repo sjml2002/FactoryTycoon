@@ -22,6 +22,7 @@ void ShopTask(void* pdata);
 
 // 변수 정의
 OS_EVENT *mutex;
+OS_EVENT *queuemsg;
 int cursor_x = 0;
 int cursor_y = 0;
 int diggerTime = -1;
@@ -53,6 +54,9 @@ int main(void) {
         printf("mutex Error: %d\n", err);
         return (-1);
     }
+    void* q_buf[20]; //message queue buffer
+    queuemsg = OSQCreate(&q_buf[0], 20);
+
     OSTaskCreate(UserInputTask, (void *)0, &UserInputStk[TASK_STK_SIZE - 1], 2);
     OSTaskCreate(MainTask, (void *)0, &MainStk[TASK_STK_SIZE - 1], 3);
     OSTaskCreate(DiggerTask, (void*)0, &DiggerStk[TASK_STK_SIZE-1], 4);
@@ -66,6 +70,14 @@ void MainTask(void *pdata) {
     while (1) {
         // 격자 출력 (위치 표시)
         INT8U err;
+        INT32U* msg;
+        do { //message queue가 빌 때까지 money 처리
+            msg = (INT32U*)OSQAccept(queuemsg);
+            if (msg != NULL) {
+                money += *msg;
+                free(msg); //msg는 사용 후 해제
+            }
+        } while (msg != NULL);
         OSMutexPend(mutex, 0, &err); // 위치 공유를 위한 뮤텍스 획득
         DrawGrid(map, cursor_x, cursor_y, somethingMap, money);
         OSMutexPost(mutex); // 뮤텍스 반환
@@ -76,6 +88,7 @@ void MainTask(void *pdata) {
 void UserInputTask(void *pdata) {
     INT8U err;
     while (1) {
+        int* msg = (int*)malloc(sizeof(int));
         if (_kbhit()) {
             int ch = _getch();
 
@@ -117,7 +130,9 @@ void UserInputTask(void *pdata) {
                                     if (ch==97 || ch==65) { //'a, A' : woodDigger
                                         if (isPossibleBuildDigger(WOOD_DIGGER, map[cursor_y][cursor_x], money)) {
                                             map[cursor_y][cursor_x] = WOOD_DIGGER;
-                                            money -= BUY_WOOD_DIGGER;
+                                            *msg = -BUY_WOOD_DIGGER;
+                                            OSQPost(queuemsg, (void *)msg);
+                                            //money -= BUY_WOOD_DIGGER;
                                         }
                                         else {
                                             while (1) {
@@ -131,7 +146,9 @@ void UserInputTask(void *pdata) {
                                     else if (ch == 98 || ch == 66) { // 'b,B' : sandDigger
                                         if (isPossibleBuildDigger(SAND_DIGGER, map[cursor_y][cursor_x], money)) {
                                             map[cursor_y][cursor_x] = SAND_DIGGER;
-                                            money -= BUY_SAND_DIGGER;
+                                            *msg = -BUY_SAND_DIGGER;
+                                            OSQPost(queuemsg, (void *)msg);
+                                            //money -= BUY_SAND_DIGGER;
                                         }
                                         else {
                                             while (1) {
@@ -145,7 +162,9 @@ void UserInputTask(void *pdata) {
                                     else if (ch == 99 || ch == 67) { // 'c,C' : coalDigger
                                         if (isPossibleBuildDigger(COAL_DIGGER, map[cursor_y][cursor_x], money)) {
                                             map[cursor_y][cursor_x] = COAL_DIGGER;
-                                            money -= BUY_COAL_DIGGER;
+                                            *msg = -BUY_COAL_DIGGER;
+                                            OSQPost(queuemsg, (void *)msg);
+                                            //money -= BUY_COAL_DIGGER;
                                         }
                                         else {
                                             while (1) {
@@ -159,7 +178,9 @@ void UserInputTask(void *pdata) {
                                     else if (ch == 100 || ch == 68) { // 'd,D' : ironDigger
                                         if (isPossibleBuildDigger(IRON_DIGGER, map[cursor_y][cursor_x], money)) {
                                             map[cursor_y][cursor_x] = IRON_DIGGER;
-                                            money -= BUY_IRON_DIGGER;
+                                            *msg = -BUY_IRON_DIGGER;
+                                            OSQPost(queuemsg, (void *)msg);
+                                            //money -= BUY_IRON_DIGGER;
                                         }
                                         else {
                                             while (1) {
@@ -173,7 +194,9 @@ void UserInputTask(void *pdata) {
                                     else if (ch == 101 || ch == 69) { // 'e,E' : goldDigger
                                         if (isPossibleBuildDigger(GOLD_DIGGER, map[cursor_y][cursor_x], money)) {
                                             map[cursor_y][cursor_x] = GOLD_DIGGER;
-                                            money -= BUY_GOLD_DIGGER;
+                                            *msg = -BUY_GOLD_DIGGER;
+                                            OSQPost(queuemsg, (void *)msg);
+                                            //money -= BUY_GOLD_DIGGER;
                                         }
                                         else {
                                             while (1) {
@@ -191,7 +214,9 @@ void UserInputTask(void *pdata) {
                         else if (ch == 98 || ch == 66) { // 'b,B'
                             if (money >= BUY_CONVEYOR) {
                                 map[cursor_y][cursor_x] = LEFT_CONVEYOR;
-                                money -= BUY_CONVEYOR;
+                                *msg = -BUY_CONVEYOR;
+                                OSQPost(queuemsg, (void *)msg);
+                                //money -= BUY_CONVEYOR;
                             }
                             else {
                                 while (1) {
@@ -205,7 +230,9 @@ void UserInputTask(void *pdata) {
                         else if (ch == 99 || ch == 67) { // 'c,C'
                             if (money >= BUY_CONVEYOR) {
                                 map[cursor_y][cursor_x] = RIGHT_CONVEYOR;
-                                money -= BUY_CONVEYOR;
+                                *msg = -BUY_CONVEYOR;
+                                OSQPost(queuemsg, (void *)msg);
+                                //money -= BUY_CONVEYOR;
                             }
                             else {
                                 while (1) {
@@ -219,7 +246,9 @@ void UserInputTask(void *pdata) {
                         else if (ch == 100 || ch == 68) { // 'd,D'
                             if (money >= BUY_CONVEYOR) {
                                 map[cursor_y][cursor_x] = UP_CONVEYOR;
-                                money -= BUY_CONVEYOR;
+                                *msg = -BUY_CONVEYOR;
+                                OSQPost(queuemsg, (void *)msg);
+                                //money -= BUY_CONVEYOR;
                             }
                             else {
                                 while (1) {
@@ -233,7 +262,9 @@ void UserInputTask(void *pdata) {
                         else if (ch == 101 || ch == 69) { // 'e,E'
                             if (money >= BUY_CONVEYOR) {
                                 map[cursor_y][cursor_x] = DOWN_CONVEYOR;
-                                money -= BUY_CONVEYOR;
+                                *msg = -BUY_CONVEYOR;
+                                OSQPost(queuemsg, (void *)msg);
+                                //money -= BUY_CONVEYOR;
                             }
                             else {
                                 while (1) {
@@ -247,7 +278,9 @@ void UserInputTask(void *pdata) {
                         else if (ch == 102 || ch == 70) { // 'f,F'
                             if (money >= BUY_SEPERATOR) {
                                 map[cursor_y][cursor_x] = SEPERATEOR;
-                                money -= BUY_SEPERATOR;
+                                *msg = -BUY_SEPERATOR;
+                                OSQPost(queuemsg, (void *)msg);
+                                //money -= BUY_SEPERATOR;
                             }
                             else {
                                 while (1) {
@@ -266,7 +299,9 @@ void UserInputTask(void *pdata) {
                 }
             }
             else if (ch == 74 || ch == 106) { //'j, J' key
-                money++;
+                *msg = 1;
+                OSQPost(queuemsg, (void *)msg);
+                //money++;
             }
             else {
                 OSTimeDly(1);
@@ -374,13 +409,16 @@ void ConveyorTask(void* pdata) {
 
 void ShopTask(void* pdata) {
     while (1) {
+        int* msg = (int*)malloc(sizeof(int));
+        *msg = 0;
         Resource sellResource = somethingMap[MAP_SIZE-1][MAP_SIZE-1];
-        money += (sellResource.wood*WOOD_MONEY);
-        money += (sellResource.sand*SAND_MONEY);
-        money += (sellResource.coal*COAL_MONEY);
-        money += (sellResource.iron*IRON_MONEY);
-        money += (sellResource.gold*GOLD_MONEY);
+        *msg += (sellResource.wood*WOOD_MONEY);
+        *msg += (sellResource.sand*SAND_MONEY);
+        *msg += (sellResource.coal*COAL_MONEY);
+        *msg += (sellResource.iron*IRON_MONEY);
+        *msg += (sellResource.gold*GOLD_MONEY);
         somethingMap[MAP_SIZE-1][MAP_SIZE-1] = init_resources(0, 0, 0, 0, 0);
+        OSQPost(queuemsg, (void *)msg);
         OSTimeDly(1);
     }
 }

@@ -29,9 +29,10 @@ char convert_landInfo_to_char(int landinfo) {
         return ('&');
 }
 
-void DrawGrid(enum LandInfo map[MAP_SIZE][MAP_SIZE], int cursor_x, int cursor_y, Resource somethingMap[MAP_SIZE][MAP_SIZE], int money) {
+void DrawGrid(enum LandInfo map[MAP_SIZE][MAP_SIZE], int cursor_x, int cursor_y, Resource somethingMap[MAP_SIZE][MAP_SIZE], int money, int diggerTime) {
     system("cls"); // 화면 지우기
-    printf("money : %d$\n", money); //debug
+    printf("diggerTime : %d(s)\n", diggerTime);
+    printf("money : %d$\n", money);
     for (int y = 0; y < MAP_SIZE; y++) {
         for (int x = 0; x < MAP_SIZE; x++) {
             if (x == cursor_x && y == cursor_y) {

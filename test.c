@@ -1,7 +1,6 @@
 #include "INCLUDES.H"
 #include "custom.h"
 # define TASK_STK_SIZE 512
-# define DIGGER_TIME 5 //채굴기는 x초에 한번씩
 # define WOOD_MONEY 1
 # define SAND_MONEY 2
 # define COAL_MONEY 3
@@ -23,6 +22,7 @@ void ShopTask(void* pdata);
 // 변수 정의
 OS_EVENT *mutex;
 OS_EVENT *queuemsg;
+int DIGGER_TIME = 10; //채굴기는 x초에 한번씩
 int cursor_x = 0;
 int cursor_y = 0;
 int diggerTime = -1;
@@ -79,7 +79,7 @@ void MainTask(void *pdata) {
             }
         } while (msg != NULL);
         OSMutexPend(mutex, 0, &err); // 위치 공유를 위한 뮤텍스 획득
-        DrawGrid(map, cursor_x, cursor_y, somethingMap, money);
+        DrawGrid(map, cursor_x, cursor_y, somethingMap, money, DIGGER_TIME);
         OSMutexPost(mutex); // 뮤텍스 반환
         OSTimeDly(1);
     }
@@ -302,6 +302,20 @@ void UserInputTask(void *pdata) {
                 *msg = 1;
                 OSQPost(queuemsg, (void *)msg);
                 //money++;
+            }
+            else if (ch == 32) { //space key
+                if (money >= UPGRADE_DIGGERTIME) {
+                    DIGGER_TIME--;
+                    *msg = -UPGRADE_DIGGERTIME;
+                    OSQPost(queuemsg, (void *)msg);
+                }
+                 else {
+                    while (1) {
+                        Display_Error("Can't Upgrade DiggerTime : Short of Money...");
+                            if (_kbhit())
+                                break ;
+                        }
+                    }
             }
             else {
                 OSTimeDly(1);

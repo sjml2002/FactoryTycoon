@@ -3,5 +3,6 @@
 
 #include "display.c"
 #include "check.c"
+#include "resources.c"
 
 #endif

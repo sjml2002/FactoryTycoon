@@ -42,7 +42,15 @@
 #include "pc.h"
 
 //constants
-# define MAP_SIZE 8
+# define MAP_SIZE 10
+# define BUY_WOOD_DIGGER 10
+# define BUY_SAND_DIGGER 20
+# define BUY_COAL_DIGGER 30
+# define BUY_IRON_DIGGER 40
+# define BUY_GOLD_DIGGER 50
+# define BUY_CONVEYOR 2
+# define BUY_SEPERATOR 15
+# define UPGRADE_DIGGERTIME 100
 
 typedef enum LandInfo {
     EMPTY, // .
@@ -56,16 +64,21 @@ typedef enum LandInfo {
     UP_CONVEYOR,
     DOWN_CONVEYOR,
     SEPERATEOR,
+    SHOP,
+    ORIGIN_WOOD,
+    ORIGIN_SAND,
+    ORIGIN_MINE, //possible dig to coal, iron, gold
 } land;
+extern const char* landinfoString[15];
 
 //자원이 몇개 있는지
-typedef struct {
-    int have = 0; //자원이 존재하는지
-    int wood = 0;
-    int sand = 0;
-    int coal = 0;
-    int iron = 0;
-    int gold = 0;
+typedef struct Resource {
+    int have; //자원이 존재하는지
+    int wood;
+    int sand;
+    int coal;
+    int iron;
+    int gold;
 } Resource;
 
 #endif

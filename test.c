@@ -1,29 +1,44 @@
 #include "INCLUDES.H"
 #include "custom.h"
 # define TASK_STK_SIZE 512
-# define DIGGER_TIME 3 //채굴기는 3초에 한번씩
+# define DIGGER_TIME 5 //채굴기는 x초에 한번씩
+# define WOOD_MONEY 1
+# define SAND_MONEY 2
+# define COAL_MONEY 3
+# define IRON_MONEY 4
+# define GOLD_MONEY 5
 
 // Task Stack Memory 지정
-OS_STK MainTaskStk[TASK_STK_SIZE];
+OS_STK MainStk[TASK_STK_SIZE];
 OS_STK UserInputStk[TASK_STK_SIZE];
-OS_STK ConveyorTaskStk[TASK_STK_SIZE];
+OS_STK DiggerStk[TASK_STK_SIZE];
+OS_STK ConveyorStk[TASK_STK_SIZE];
+OS_STK ShopStk[TASK_STK_SIZE];
 void MainTask(void *pdata);
 void UserInputTask(void *pdata);
+void DiggerTask(void *pdata);
 void ConveyorTask(void *pdata);
+void ShopTask(void* pdata);
 
 // 변수 정의
 OS_EVENT *mutex;
 int cursor_x = 0;
 int cursor_y = 0;
-int diggerTime = 0;
+int diggerTime = -1;
+int money = 30;
 
 enum LandInfo map[MAP_SIZE][MAP_SIZE];
-Resource somethingMap [MAP_SIZE][MAP_SIZE]; //물건이 있는지만의 정보를 담은
+Resource somethingMap[MAP_SIZE][MAP_SIZE]; //물건이 있는지만의 정보를 담은
 void map_init() {
     for(int i=0; i<MAP_SIZE; i++) {
         for(int j=0; j<MAP_SIZE; j++)
             map[i][j] = EMPTY;
     }
+    map[3][4] = ORIGIN_WOOD;
+    map[5][2] = ORIGIN_SAND;
+    map[8][3] = ORIGIN_MINE;
+    map[0][7] = ORIGIN_MINE; 
+    map[MAP_SIZE-1][MAP_SIZE-1] = SHOP;
 }
 
 int main(void) {
@@ -39,8 +54,10 @@ int main(void) {
         return (-1);
     }
     OSTaskCreate(UserInputTask, (void *)0, &UserInputStk[TASK_STK_SIZE - 1], 2);
-    OSTaskCreate(MainTask, (void *)0, &MainTaskStk[TASK_STK_SIZE - 1], 3);
-    OSTaskCreate(ConveyorTask, (void*)0, &ConveyorTaskStk[TASK_STK_SIZE-1],4);
+    OSTaskCreate(MainTask, (void *)0, &MainStk[TASK_STK_SIZE - 1], 3);
+    OSTaskCreate(DiggerTask, (void*)0, &DiggerStk[TASK_STK_SIZE-1], 4);
+    OSTaskCreate(ConveyorTask, (void*)0, &ConveyorStk[TASK_STK_SIZE-1], 5);
+    OSTaskCreate(ShopTask, (void*)0, &ShopStk[TASK_STK_SIZE-1], 6);
     OSStart();
     return 0;
 }
@@ -50,7 +67,7 @@ void MainTask(void *pdata) {
         // 격자 출력 (위치 표시)
         INT8U err;
         OSMutexPend(mutex, 0, &err); // 위치 공유를 위한 뮤텍스 획득
-        DrawGrid(map, cursor_x, cursor_y, somethingMap);
+        DrawGrid(map, cursor_x, cursor_y, somethingMap, money);
         OSMutexPost(mutex); // 뮤텍스 반환
         OSTimeDly(1);
     }
@@ -86,35 +103,85 @@ void UserInputTask(void *pdata) {
                 OSMutexPost(mutex); // 뮤텍스 해제
             }
             else if (ch == 13) {  //Enter Key                   
-                Display_select(somethingMap[cursor_y][cursor_x]);
+                Display_select(somethingMap[cursor_y][cursor_x], map[cursor_y][cursor_x]);
                 while (1) {
                     if (_kbhit()) {
                         ch = _getch();
                         if (ch == 27) // esc : 돌아가기
                             break;
                         else if (ch == 97 || ch == 65) { // 'a,A'
-                            Display_Digger_select();
+                            Display_Digger_select(map[cursor_y][cursor_x]);
                             while (1) { //채굴기 고르기
                                 if (_kbhit()) {
                                     ch = _getch();
                                     if (ch==97 || ch==65) { //'a, A' : woodDigger
-                                        map[cursor_y][cursor_x] = WOOD_DIGGER;
+                                        if (isPossibleBuildDigger(WOOD_DIGGER, map[cursor_y][cursor_x], money)) {
+                                            map[cursor_y][cursor_x] = WOOD_DIGGER;
+                                            money -= BUY_WOOD_DIGGER;
+                                        }
+                                        else {
+                                            while (1) {
+                                                Display_Error("Is not possible to Build Digger");
+                                                if (_kbhit())
+                                                    break ;
+                                            }
+                                        }
                                         break ;
                                     }
                                     else if (ch == 98 || ch == 66) { // 'b,B' : sandDigger
-                                        map[cursor_y][cursor_x] = SAND_DIGGER;
+                                        if (isPossibleBuildDigger(SAND_DIGGER, map[cursor_y][cursor_x], money)) {
+                                            map[cursor_y][cursor_x] = SAND_DIGGER;
+                                            money -= BUY_SAND_DIGGER;
+                                        }
+                                        else {
+                                            while (1) {
+                                                Display_Error("Is not possible to Build Digger");
+                                                if (_kbhit())
+                                                    break ;
+                                            }
+                                        }
                                         break ;
                                     }
                                     else if (ch == 99 || ch == 67) { // 'c,C' : coalDigger
-                                        map[cursor_y][cursor_x] = COAL_DIGGER;
+                                        if (isPossibleBuildDigger(COAL_DIGGER, map[cursor_y][cursor_x], money)) {
+                                            map[cursor_y][cursor_x] = COAL_DIGGER;
+                                            money -= BUY_COAL_DIGGER;
+                                        }
+                                        else {
+                                            while (1) {
+                                                Display_Error("Is not possible to Build Digger");
+                                                if (_kbhit())
+                                                    break ;
+                                            }
+                                        }
                                         break ;
                                     }
                                     else if (ch == 100 || ch == 68) { // 'd,D' : ironDigger
-                                        map[cursor_y][cursor_x] = IRON_DIGGER;
+                                        if (isPossibleBuildDigger(IRON_DIGGER, map[cursor_y][cursor_x], money)) {
+                                            map[cursor_y][cursor_x] = IRON_DIGGER;
+                                            money -= BUY_IRON_DIGGER;
+                                        }
+                                        else {
+                                            while (1) {
+                                                Display_Error("Is not possible to Build Digger");
+                                                if (_kbhit())
+                                                    break ;
+                                            }
+                                        }
                                         break ;
                                     }
                                     else if (ch == 101 || ch == 69) { // 'e,E' : goldDigger
-                                        map[cursor_y][cursor_x] = GOLD_DIGGER;
+                                        if (isPossibleBuildDigger(GOLD_DIGGER, map[cursor_y][cursor_x], money)) {
+                                            map[cursor_y][cursor_x] = GOLD_DIGGER;
+                                            money -= BUY_GOLD_DIGGER;
+                                        }
+                                        else {
+                                            while (1) {
+                                                Display_Error("Is not possible to Build Digger");
+                                                if (_kbhit())
+                                                    break ;
+                                            }
+                                        }
                                         break ;
                                     }
                                 }
@@ -122,23 +189,73 @@ void UserInputTask(void *pdata) {
                             break ;
                         }
                         else if (ch == 98 || ch == 66) { // 'b,B'
-                            map[cursor_y][cursor_x] = LEFT_CONVEYOR;
+                            if (money >= BUY_CONVEYOR) {
+                                map[cursor_y][cursor_x] = LEFT_CONVEYOR;
+                                money -= BUY_CONVEYOR;
+                            }
+                            else {
+                                while (1) {
+                                    Display_Error("Short of Money...");
+                                    if (_kbhit())
+                                        break ;
+                                }
+                            }
                             break ;
                         }
                         else if (ch == 99 || ch == 67) { // 'c,C'
-                            map[cursor_y][cursor_x] = RIGHT_CONVEYOR;
+                            if (money >= BUY_CONVEYOR) {
+                                map[cursor_y][cursor_x] = RIGHT_CONVEYOR;
+                                money -= BUY_CONVEYOR;
+                            }
+                            else {
+                                while (1) {
+                                    Display_Error("Short of Money...");
+                                    if (_kbhit())
+                                        break ;
+                                }
+                            }
                             break ;
                         }
                         else if (ch == 100 || ch == 68) { // 'd,D'
-                            map[cursor_y][cursor_x] = UP_CONVEYOR;
+                            if (money >= BUY_CONVEYOR) {
+                                map[cursor_y][cursor_x] = UP_CONVEYOR;
+                                money -= BUY_CONVEYOR;
+                            }
+                            else {
+                                while (1) {
+                                    Display_Error("Short of Money...");
+                                    if (_kbhit())
+                                        break ;
+                                }
+                            }
                             break ;
                         }
                         else if (ch == 101 || ch == 69) { // 'e,E'
-                            map[cursor_y][cursor_x] = DOWN_CONVEYOR;
+                            if (money >= BUY_CONVEYOR) {
+                                map[cursor_y][cursor_x] = DOWN_CONVEYOR;
+                                money -= BUY_CONVEYOR;
+                            }
+                            else {
+                                while (1) {
+                                    Display_Error("Short of Money...");
+                                    if (_kbhit())
+                                        break ;
+                                }
+                            }
                             break ;
                         }
                         else if (ch == 102 || ch == 70) { // 'f,F'
-                            map[cursor_y][cursor_x] = SEPERATEOR;
+                            if (money >= BUY_SEPERATOR) {
+                                map[cursor_y][cursor_x] = SEPERATEOR;
+                                money -= BUY_SEPERATOR;
+                            }
+                            else {
+                                while (1) {
+                                    Display_Error("Short of Money...");
+                                    if (_kbhit())
+                                        break ;
+                                }
+                            }
                             break ;
                         }
                         else if (ch == 113 || ch == 81) { // 'q,Q'
@@ -147,6 +264,9 @@ void UserInputTask(void *pdata) {
                         }
                     }
                 }
+            }
+            else if (ch == 74 || ch == 106) { //'j, J' key
+                money++;
             }
             else {
                 OSTimeDly(1);
@@ -157,6 +277,33 @@ void UserInputTask(void *pdata) {
         }
     }
 }
+
+void DiggerTask(void* pdata) {
+    while (1) {
+        diggerTime = (diggerTime + 1) % DIGGER_TIME;
+        if (diggerTime == 0) {
+            //create resource
+            for(int y=0; y<MAP_SIZE; y++) {
+                for(int x=0; x<MAP_SIZE; x++) {
+                    if (somethingMap[y][x].have) //이미 생산한 물품이 있다면 또 생산하지는 않음.
+                        continue ;
+                    else if (map[y][x] == WOOD_DIGGER)
+                        resource_operation(&somethingMap[y][x], 1, 1);
+                    else if (map[y][x] == SAND_DIGGER)
+                        resource_operation(&somethingMap[y][x], 2, 1);
+                    else if (map[y][x] == COAL_DIGGER)
+                        resource_operation(&somethingMap[y][x], 3, 1);
+                    else if (map[y][x] == IRON_DIGGER)
+                        resource_operation(&somethingMap[y][x], 4, 1);
+                    else if (map[y][x] == GOLD_DIGGER)
+                        resource_operation(&somethingMap[y][x], 5, 1);
+                }
+            }
+        }
+        OSTimeDly(1);
+    }
+}
+
 
 void ConveyorTask(void* pdata) {
     //이미 이동한 것은 또 이동하지 못하도록
@@ -175,53 +322,65 @@ void ConveyorTask(void* pdata) {
                     continue;
                 }
                 if ((WOOD_DIGGER <= map[y][x] && map[y][x] <= GOLD_DIGGER) || (somethingMap[y][x].have && map[y][x] == SEPERATEOR)) {
-                    //somethingMap[y][x] > 0 ? somethingMap[y][x]-- : somethingMap = 0;
-                    if (diggerTime % DIGGER_TIME != 0) {
-                        diggerTime++;
+                    if ((WOOD_DIGGER <= map[y][x] && map[y][x] <= GOLD_DIGGER) && (diggerTime % DIGGER_TIME != 0))
                         continue ;
-                    }
-                    diggerTime++;
                     //Digger || Seperator
                     int pg = possibleGoAll(map, y, x);
                     if (pg & 8) { //possible go to left
-                        //somethingMap[y][x-1]++;
+                        somethingMap[y][x-1] = resource_plus(somethingMap[y][x-1], somethingMap[y][x]);
                         cacheMap[y][x-1] = 1;
                     }
                     if (pg & 4) { //possible go to right
-                        //somethingMap[y][x+1]++;
+                        somethingMap[y][x+1] = resource_plus(somethingMap[y][x+1], somethingMap[y][x]);
                         cacheMap[y][x+1] = 1;
                     }
                     if (pg & 2) { //possible go to up
-                        //somethingMap[y-1][x]++;
+                        somethingMap[y-1][x] = resource_plus(somethingMap[y-1][x], somethingMap[y][x]);
                         cacheMap[y-1][x] = 1;
                     }
                     if (pg & 1) { //possible go to down
-                        //somethingMap[y+1][x]++;
+                        somethingMap[y+1][x] = resource_plus(somethingMap[y+1][x], somethingMap[y][x]);
                         cacheMap[y+1][x] = 1;
                     }
+                    if ((pg & 15) != 0)
+                        somethingMap[y][x] = init_resources(0, 0, 0, 0, 0);
+
                 }
-                else if (somethingMap[y][x] && map[y][x] == LEFT_CONVEYOR && possibleGoLeft(map, y, x)) {
-                    //somethingMap[y][x] > 0 ? somethingMap[y][x]-- : somethingMap = 0;
-                    //somethingMap[y][x-1]++;
+                else if (somethingMap[y][x].have && map[y][x] == LEFT_CONVEYOR && possibleGoLeft(map, y, x)) {
+                    somethingMap[y][x-1] = resource_plus(somethingMap[y][x-1], somethingMap[y][x]);
+                    somethingMap[y][x] = init_resources(0, 0, 0, 0, 0);
                     cacheMap[y][x-1] = 1;
                 }
-                else if (somethingMap[y][x] && map[y][x] == RIGHT_CONVEYOR && possibleGoRight(map, y, x)) {
-                    //somethingMap[y][x] > 0 ? somethingMap[y][x]-- : somethingMap = 0;
-                    //somethingMap[y][x+1]++;
+                else if (somethingMap[y][x].have && map[y][x] == RIGHT_CONVEYOR && possibleGoRight(map, y, x)) {
+                    somethingMap[y][x+1] = resource_plus(somethingMap[y][x+1], somethingMap[y][x]);
+                    somethingMap[y][x] = init_resources(0, 0, 0, 0, 0);
                     cacheMap[y][x+1] = 1;
                 }
-                else if (somethingMap[y][x] && map[y][x] == UP_CONVEYOR && possibleGoUp(map, y, x)) {
-                    //somethingMap[y][x] > 0 ? somethingMap[y][x]-- : somethingMap = 0;
-                    //somethingMap[y-1][x]++;
+                else if (somethingMap[y][x].have && map[y][x] == UP_CONVEYOR && possibleGoUp(map, y, x)) {
+                    somethingMap[y-1][x] = resource_plus(somethingMap[y-1][x], somethingMap[y][x]);
+                    somethingMap[y][x] = init_resources(0, 0, 0, 0, 0);
                     cacheMap[y-1][x] = 1;
                 }
-                else if (somethingMap[y][x] && map[y][x] == DOWN_CONVEYOR && possibleGoDown(map, y, x)) {
-                    //somethingMap[y][x] > 0 ? somethingMap[y][x]-- : somethingMap = 0;
-                    //somethingMap[y+1][x]++;
+                else if (somethingMap[y][x].have && map[y][x] == DOWN_CONVEYOR && possibleGoDown(map, y, x)) {
+                    somethingMap[y+1][x] = resource_plus(somethingMap[y+1][x], somethingMap[y][x]);
+                    somethingMap[y][x] = init_resources(0, 0, 0, 0, 0);
                     cacheMap[y+1][x] = 1;
                 }
             }
         }  
+        OSTimeDly(1);
+    }
+}
+
+void ShopTask(void* pdata) {
+    while (1) {
+        Resource sellResource = somethingMap[MAP_SIZE-1][MAP_SIZE-1];
+        money += (sellResource.wood*WOOD_MONEY);
+        money += (sellResource.sand*SAND_MONEY);
+        money += (sellResource.coal*COAL_MONEY);
+        money += (sellResource.iron*IRON_MONEY);
+        money += (sellResource.gold*GOLD_MONEY);
+        somethingMap[MAP_SIZE-1][MAP_SIZE-1] = init_resources(0, 0, 0, 0, 0);
         OSTimeDly(1);
     }
 }
